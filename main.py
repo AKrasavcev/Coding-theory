@@ -1,161 +1,5 @@
-import random
-
-def B() -> list[list[int]]:
-    return [
-        [1,1,0,1,1,1,0,0,0,1,0,1],
-        [1,0,1,1,1,0,0,0,1,0,1,1],
-        [0,1,1,1,0,0,0,1,0,1,1,1],
-        [1,1,1,0,0,0,1,0,1,1,0,1],
-        [1,1,0,0,0,1,0,1,1,0,1,1],
-        [1,0,0,0,1,0,1,1,0,1,1,1],
-        [0,0,0,1,0,1,1,0,1,1,1,1],
-        [0,0,1,0,1,1,0,1,1,1,0,1],
-        [0,1,0,1,1,0,1,1,1,0,0,1],
-        [1,0,1,1,0,1,1,1,0,0,0,1],
-        [0,1,1,0,1,1,1,0,0,0,1,1],
-        [1,1,1,1,1,1,1,1,1,1,1,0]
-    ]
-
-def G() -> list[list[int]]:
-    return [
-    [1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,0,0,0,1,0],
-    [0,1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,0,0,0,1,0,1],
-    [0,0,1,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,0,1,1],
-    [0,0,0,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,1,0,1,1,0],
-    [0,0,0,0,1,0,0,0,0,0,0,0,1,1,0,0,0,1,0,1,1,0,1],
-    [0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1,0,1,1,0,1,1],
-    [0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,1,0,1,1,1],
-    [0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,1,1,0,1,1,1,0],
-    [0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1,1,0,1,1,1,0,0],
-    [0,0,0,0,0,0,0,0,0,1,0,0,1,0,1,1,0,1,1,1,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,0,1,1,1,0,0,0,1],
-    [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]
-]
-
-def H() -> list[list[int]]:
-    return [
-    [1,0,0,0,0,0,0,0,0,0,0,0],
-    [0,1,0,0,0,0,0,0,0,0,0,0],
-    [0,0,1,0,0,0,0,0,0,0,0,0],
-    [0,0,0,1,0,0,0,0,0,0,0,0],
-    [0,0,0,0,1,0,0,0,0,0,0,0],
-    [0,0,0,0,0,1,0,0,0,0,0,0],
-    [0,0,0,0,0,0,1,0,0,0,0,0],
-    [0,0,0,0,0,0,0,1,0,0,0,0],
-    [0,0,0,0,0,0,0,0,1,0,0,0],
-    [0,0,0,0,0,0,0,0,0,1,0,0],
-    [0,0,0,0,0,0,0,0,0,0,1,0],
-    [0,0,0,0,0,0,0,0,0,0,0,1],
-    [1,1,0,1,1,1,0,0,0,1,0,1],
-    [1,0,1,1,1,0,0,0,1,0,1,1],
-    [0,1,1,1,0,0,0,1,0,1,1,1],
-    [1,1,1,0,0,0,1,0,1,1,0,1],
-    [1,1,0,0,0,1,0,1,1,0,1,1],
-    [1,0,0,0,1,0,1,1,0,1,1,1],
-    [0,0,0,1,0,1,1,0,1,1,1,1],
-    [0,0,1,0,1,1,0,1,1,1,0,1],
-    [0,1,0,1,1,0,1,1,1,0,0,1],
-    [1,0,1,1,0,1,1,1,0,0,0,1],
-    [0,1,1,0,1,1,1,0,0,0,1,1],
-    [1,1,1,1,1,1,1,1,1,1,1,0]
-]
-
-def ZEROES() -> list[int]:
-    return [0] * 12
-
-test_vector = [1,0,1,0,1,0,1,0,1,0,1,0]
-test_vector2 = [1,1,0,1,0,1,0,1,0,1,0,1]
-
-def add_w24(v: list[int]) -> list[int]:
-    if sum(v) % 2:
-        v.append(0)
-    else:
-        v.append(1)
-    return v
-
-def remove_w24(v: list[int]) -> list[int]:
-    return v[:-1]
-
-def multiply(v : list[int], A : list[list[int]]) -> list[int]:
-    sum = [0] * len(A[0])
-    for i in range(len(A[0])):
-        for j in range(len(v)):
-            sum[i] ^= v[j] & A[j][i]
-    return sum
-
-def syndrome(v : list[int], A : list[list[int]]) -> list[int]:
-    return multiply(v, A)
-
-def xor_vectors(a : list[int], b: list[int]) -> list[int]:
-    return [(x ^ y) for x, y in zip(a, b)]
-
-def sum_vectors(a : list[int], b : list[int]) -> list[int]:
-    return [(x + y) % 2 for x, y in zip(a, b)]
-
-def combine_vectors(a : list[int], b: list[int]) -> list[int]:
-    return a + b
-
-def weight(v : list[int]) -> int:
-    return sum(v)
-
-def encode(v : list[int]) -> list[int]:
-    if len(v) != 12:
-        raise ValueError("Input vector must be of length 12.")
-    return multiply(v, G())
-
-def IMLD(w : list[int]) -> list[int]:
-    if len(w) != 24:
-        raise ValueError("Input vector must be of length 24.")
-    
-    s = syndrome(w, H())
-    
-    if weight(s) <= 3:
-        return sum_vectors(combine_vectors(s, ZEROES()), w)
-    
-    for i in range(len(B())):
-        sb = sum_vectors(s, B()[i])
-        if weight(sb) <= 2:
-            e = ZEROES()
-            e[i] = 1
-            return sum_vectors(combine_vectors(sb, e), w)
-        
-    s2 = syndrome(s, B())
-    if weight(s2) <= 3:
-        return sum_vectors(combine_vectors(ZEROES(), s2), w)
-    
-    for i in range(len(B())):
-        sb = sum_vectors(s2, B()[i])
-        if weight(sb) <= 2:
-            e = ZEROES()
-            e[i] = 1
-            return sum_vectors(combine_vectors(e, sb), w)
-        
-    raise ValueError("More than 3 errors detected; cannot decode.")
-
-def decode(w : list[int]) -> list[int]:
-    w = add_w24(w)
-    corrected = IMLD(w)
-    corrected = remove_w24(corrected)
-    return corrected[:12]
-
-def canal(v: list[int], p: float) -> list[int]:
-    noisy = v.copy()
-    for i in range(len(noisy)):
-        if random.random() <= p:
-            noisy[i] ^= 1
-    return noisy
-
-
-"""
-v = test_vector
-encoded = encode(v)
-print("Original vector: ", v)
-print("Encoded vector:  ", encoded)
-noisy = canal(encoded, 0.1)
-print("Noisy vector:    ", noisy)
-decoded = decode(noisy)
-print("Decoded vector:  ", decoded)
-"""
+from PIL import Image
+from functions import encode, decode, canal, xor_vectors, weight
 
 while True:
     print("Golay (C23) Code Implementation")
@@ -301,9 +145,109 @@ while True:
                 print("\n" * 2)
                 break
     elif choice == '3':
-        print("not implemented yet")
-        input("Press Any Key to continue...")
-        print("\n" * 2)
+        # Pipeline: open 24-bit BMP, split to 12-bit blocks, encode (12->23), send through canal,
+        # decode (23->12) and reconstruct the image bytes, then save reconstructed image.
+        while True:
+            file_path = input("Enter the path to the 24-bit BMP image file: ")
+            try:
+                img = Image.open(file_path)
+            except Exception as e:
+                print("Could not open image. Please check the file path and try again. Error:", e)
+                continue
+
+            p = float(input("Enter error probability (e.g., 0.01 for 1%): "))
+            if p < 0 or p > 1:
+                print("Invalid error probability. Please enter a value between 0 and 1.")
+                continue
+
+            # Ensure RGB (24-bit) mode
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+
+            width, height = img.size
+            raw_bytes = img.tobytes()  # length = width * height * 3
+
+            # helpers to convert between bytes and bits (MSB-first per byte)
+            def bytes_to_bits(b: bytes) -> list[int]:
+                bits = [((byte >> i) & 1) for byte in b for i in range(7, -1, -1)]
+                return bits
+
+            def bits_to_bytes(bits: list[int]) -> bytes:
+                # pad to full bytes
+                n = ((len(bits) + 7) // 8) * 8
+                bits = bits + [0] * (n - len(bits))
+                out = bytearray()
+                for i in range(0, len(bits), 8):
+                    byte = 0
+                    for bit in bits[i:i+8]:
+                        byte = (byte << 1) | (bit & 1)
+                    out.append(byte)
+                return bytes(out)
+
+            orig_bits = bytes_to_bits(raw_bytes)
+            orig_len_bytes = len(raw_bytes)
+
+            # chunk into 12-bit blocks and pad the last block with zeros if needed
+            n_blocks = (len(orig_bits) + 11) // 12
+            pad_bits = n_blocks * 12 - len(orig_bits)
+            padded_bits = orig_bits + [0] * pad_bits
+
+            # encode each 12-bit block into 23-bit codeword
+            encoded_bits = []
+            for i in range(0, len(padded_bits), 12):
+                block = padded_bits[i:i+12]
+                encoded_bits.extend(encode(block))
+
+            print(f"Image opened: {file_path}\nMode: {img.mode}, Size: {width}x{height}, Bytes: {orig_len_bytes}")
+            print(f"Payload bits: {len(orig_bits)}, blocks: {n_blocks}, encoded bits: {len(encoded_bits)}")
+
+            # send encoded stream through channel
+            noisy_encoded = canal(encoded_bits, p)
+
+            # count how many encoded bits flipped by the channel
+            flips = sum(1 for a, b in zip(encoded_bits, noisy_encoded) if a != b)
+            print(f"Bits flipped in encoded stream by channel: {flips}")
+
+            # decode noisy encoded stream back into 12-bit blocks
+            decoded_bits = []
+            try:
+                for i in range(0, len(noisy_encoded), 23):
+                    cw = noisy_encoded[i:i+23]
+                    if len(cw) < 23:
+                        cw += [0] * (23 - len(cw))
+                    decoded_block = decode(cw)  # returns 12 bits
+                    decoded_bits.extend(decoded_block)
+            except Exception as e:
+                print("Decoding failed for one of the codewords. Error:", e)
+                # abort this run and let user retry with smaller p
+                input("Press Any Key to continue...")
+                print("\n" * 2)
+                break
+
+            # trim decoded bits to original length and convert back to bytes
+            decoded_bits = decoded_bits[:len(orig_bits)]
+            reconstructed_bytes = bits_to_bytes(decoded_bits)[:orig_len_bytes]
+
+            # write reconstructed image as BMP
+            out_path = file_path.rsplit('.', 1)[0] + '_reconstructed.bmp'
+            try:
+                out_img = Image.frombytes('RGB', (width, height), reconstructed_bytes)
+                out_img.save(out_path, format='BMP')
+            except Exception as e:
+                print('Could not reconstruct/save image. Error:', e)
+                input("Press Any Key to continue...")
+                print("\n" * 2)
+                break
+
+            # report bit errors between original and decoded payload
+            error_vector = [a ^ b for a, b in zip(orig_bits, decoded_bits)]
+            num_errors = sum(error_vector)
+            print(f"Reconstructed image saved to: {out_path}")
+            print(f"Number of bit errors after decode (in payload): {num_errors} / {len(orig_bits)}")
+
+            input("Press Any Key to continue...")
+            print("\n" * 2)
+            break
     elif choice == '4':
         print("Exiting program.")
         break
