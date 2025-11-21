@@ -99,9 +99,14 @@ def weight(v : list[int]) -> int:
     return sum(v)
 
 def encode(v : list[int]) -> list[int]:
+    if len(v) != 12:
+        raise ValueError("Input vector must be of length 12.")
     return multiply(v, G())
 
 def IMLD(w : list[int]) -> list[int]:
+    if len(w) != 24:
+        raise ValueError("Input vector must be of length 24.")
+    
     s = syndrome(w, H())
     
     if weight(s) <= 3:
@@ -162,6 +167,7 @@ while True:
     print("4. Exit")
     print("------------------------------")
     choice = input("Enter your choice (1-4): ")
+    choice = choice.strip()
     p = 0
     if choice == '1':
         while True:
@@ -175,6 +181,7 @@ while True:
                 print("Invalid input. Please enter a 12-bit binary vector.")
             elif p < 0 or p > 1:
                 print("Invalid error probability. Please enter a value between 0 and 1.")
+                continue
             else:
                 vector = [int(bit) for bit in user_input]
                 print("Original vector: ", vector)
@@ -229,9 +236,74 @@ while True:
                 print("\n" * 2)
                 break
     elif choice == '2':
-        print("not implemented yet")
+        while True:
+            text = input("Enter text to encode: ")
+            p = float(input("Enter error probability (e.g., 0.1 for 10%): "))
+
+            if p < 0 or p > 1:
+                print("Invalid error probability. Please enter a value between 0 and 1.")
+                continue
+            else:
+                binary_string = ''.join(format(ord(char), '08b') for char in text)
+                #print("Original binary string:", binary_string)
+                original_noisy = []
+                for i in range(0, len(binary_string), 12):
+                    chunk = binary_string[i:i+12]
+                    if len(chunk) < 12:
+                        chunk = chunk.ljust(12, '0')
+                    vector = [int(bit) for bit in chunk]
+                    original_noisy.extend(canal(vector, p))
+
+                original_reproduced = ''
+                for i in range(0, len(original_noisy), 8):
+                    byte = original_noisy[i:i+8]
+                    if len(byte) < 8:
+                        byte += [0] * (8 - len(byte))
+                    original_reproduced += chr(int(''.join(map(str, byte)), 2))
+
+                encoded_bits = []
+                noisy_bits = []
+                for i in range(0, len(binary_string), 12):
+                    chunk = binary_string[i:i+12]
+                    if len(chunk) < 12:
+                        chunk = chunk.ljust(12, '0')
+                    vector = [int(bit) for bit in chunk]
+                    encoded_chunk = encode(vector)
+                    encoded_bits.extend(encoded_chunk)
+                    noisy_bits.extend(canal(encoded_chunk, p))
+
+                error_vector = xor_vectors(encoded_bits, noisy_bits)
+                #print("Encoded binary string:", ''.join(map(str, encoded_bits)))
+                #print("Noisy binary string:  ", ''.join(map(str, noisy_bits)))
+                #print("Error vector:     ", ''.join(map(str, error_vector)))
+
+                decoded_bits = []
+                for i in range(0, len(noisy_bits), 23):
+                    chunk = noisy_bits[i:i+23]
+                    if len(chunk) < 23:
+                        chunk += [0] * (23 - len(chunk))
+                    decoded_chunk = decode(chunk)
+                    decoded_bits.extend(decoded_chunk)
+
+                decoded_string = ''
+                for i in range(0, len(decoded_bits), 8):
+                    byte = decoded_bits[i:i+8]
+                    if len(byte) < 8:
+                        byte += [0] * (8 - len(byte))
+                    decoded_string += chr(int(''.join(map(str, byte)), 2))
+
+                print("\nOriginal text:                      ", text)
+                print("Original text sent through channel: ", original_reproduced.strip('\x00'))
+                print("Decoded text:                       ", decoded_string.strip('\x00'))
+                print("Length of encoded vector:           ", len(encoded_bits))
+                print("Number of errors:                   ", sum(error_vector))
+                input("Press Any Key to continue...")
+                print("\n" * 2)
+                break
     elif choice == '3':
         print("not implemented yet")
+        input("Press Any Key to continue...")
+        print("\n" * 2)
     elif choice == '4':
         print("Exiting program.")
         break
