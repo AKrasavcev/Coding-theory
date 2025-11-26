@@ -1,5 +1,5 @@
 from PIL import Image
-from functions import encode, decode, canal, xor_vectors, weight
+from functions import *
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import itertools
 import os
@@ -319,8 +319,17 @@ def main():
         elif choice == '4':
             print("Exiting program.")
             break
+        elif choice == '5':
+            print("Running tests...")
+            print("test vector:", test_vector)
+            encoded = encode_int(bits_list_to_int(test_vector))
+            print("Encoded vector:", int_to_bits_list(encoded, 23))
+            noisy = canal_int(encoded, 0.1)
+            print("Noisy vector:  ", int_to_bits_list(noisy, 23))
+            decoded = decode_int(noisy)
+            print("Decoded vector:", int_to_bits_list(decoded, 12))
         else:
-            print("Invalid choice. Please enter a number between 1 and 4.")
+            print("Invalid choice. Please enter a number between 1 and 5.")
 
 if __name__ == '__main__':
     main()
