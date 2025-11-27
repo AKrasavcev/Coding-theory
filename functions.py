@@ -1,5 +1,6 @@
 import random
 import os
+from threading import Lock
 from functools import lru_cache
 
 def B() -> list[list[int]]:
@@ -192,17 +193,62 @@ def decode_many_int(cws: list[int]) -> list[int]:
 
 def canal_int(cw: int, p: float) -> int:
     """Apply BSC channel to a 23-bit codeword integer, flipping each bit with probability p."""
-    # create a local RNG seeded from OS randomness to avoid correlated streams in worker processes
-    rnd = random.Random(int.from_bytes(os.urandom(8), 'little'))
+    # Use a module-level RNG seeded once per process to avoid the cost of reseeding
+    # on every call while still ensuring different processes get different seeds
+    global _module_rng, _module_rng_lock
+    if '_module_rng' not in globals():
+        # initialize on first use (per-process)
+        _module_rng = random.Random(int.from_bytes(os.urandom(8), 'little'))
+        _module_rng_lock = Lock()
+
     out = cw
-    for j in range(23):
-        if rnd.random() <= p:
-            out ^= (1 << j)
+    # Lock RNG access to be thread-safe in case canal_int is called from multiple threads
+    with _module_rng_lock:
+        for j in range(23):
+            if _module_rng.random() <= p:
+                out ^= (1 << j)
     return out
 
 
 def canal_many_int(cws: list[int], p: float) -> list[int]:
     return [canal_int(cw, p) for cw in cws]
+
+# --- top-level helpers for multiprocessing (picklable) ---
+def bytes_to_12bit_ints(b: bytes) -> list[int]:
+    # Assumes b length is a multiple of 3 bytes for chunk-aligned processing (24 bits -> 2 blocks)
+    blocks = []
+    acc = 0
+    acc_len = 0
+    for byte in b:
+        for i in range(7, -1, -1):
+            acc = (acc << 1) | ((byte >> i) & 1)
+            acc_len += 1
+            if acc_len == 12:
+                blocks.append(acc)
+                acc = 0
+                acc_len = 0
+    if acc_len > 0:
+        acc = acc << (12 - acc_len)
+        blocks.append(acc)
+    return blocks
+
+def blocks_ints_to_bytes(blocks: list[int]) -> bytes:
+    # Convert a list of 12-bit ints to bytes; returns full bytes (no trimming)
+    out = bytearray()
+    acc = 0
+    acc_len = 0
+    for val in blocks:
+        for i in range(11, -1, -1):
+            bit = (val >> i) & 1
+            acc = (acc << 1) | bit
+            acc_len += 1
+            if acc_len == 8:
+                out.append(acc)
+                acc = 0
+                acc_len = 0
+    if acc_len > 0:
+        out.append(acc << (8 - acc_len))
+    return bytes(out)
 
 
 test_vector = [1,0,1,0,1,0,1,0,1,0,1,0]
