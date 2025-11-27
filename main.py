@@ -89,6 +89,7 @@ def main():
 
                 binary_string = ''.join(format(ord(char), '08b') for char in text)
 
+                # Simulate sending original text through channel without encoding
                 original_noisy = []
                 for i in range(0, len(binary_string), 12):
                     chunk = binary_string[i:i+12]
@@ -110,6 +111,7 @@ def main():
                 noisy_bits = []
                 decoded_bits = []
 
+                # Encode the binary string into 23-bit codewords
                 for i in range(0, len(binary_string), 12):
                     chunk = binary_string[i:i+12]
                     if len(chunk) < 12:
@@ -119,13 +121,17 @@ def main():
                     u23 = encode_int(u12)
                     encoded_blocks.append(u23)
 
+                # Simulate sending encoded text through channel with errors
                 noisy_blocks = [canal_int23(u23, p) for u23 in encoded_blocks]
+
+                # Decode the received noisy codewords
                 decoded_blocks = [decode_int(u23) for u23 in noisy_blocks]
 
                 encoded_bits.extend([bit for u23 in encoded_blocks for bit in int_to_bits_list(u23, 23)])
                 noisy_bits.extend([bit for u23 in noisy_blocks for bit in int_to_bits_list(u23, 23)])
                 decoded_bits.extend([bit for u12 in decoded_blocks for bit in int_to_bits_list(u12, 12)])
 
+                # Convert decoded bits back to string
                 decoded_string = ''
                 for i in range(0, len(decoded_bits), 8):
                     byte = decoded_bits[i:i+8]
