@@ -2,6 +2,7 @@ from PIL import Image
 from functions import *
 import os
 import time
+import multiprocessing
 
 
 def main():
@@ -134,7 +135,7 @@ def main():
 
                 error_vector = [a ^ b for a, b in zip(encoded_bits, noisy_bits)]
 
-                print("\nOriginal text:                       ", text)
+                print("\nOriginal text:                      ", text)
                 print("Original text sent through channel: ", original_reproduced)
                 print("Decoded text:                       ", decoded_string)
                 print("Length of encoded vector:           ", len(encoded_bits))
@@ -267,4 +268,5 @@ def main():
             print("Invalid choice. Please enter a number between 1 and 5.")
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
     main()

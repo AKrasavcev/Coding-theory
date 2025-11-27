@@ -1,10 +1,10 @@
 from concurrent.futures import ProcessPoolExecutor
-import itertools
-import random
-import os
 from threading import Lock
 from functools import lru_cache
 from PIL import Image
+import itertools
+import random
+import os
 
 
 def B() -> list[list[int]]:
