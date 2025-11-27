@@ -1,7 +1,10 @@
+from concurrent.futures import ProcessPoolExecutor
+import itertools
 import random
 import os
 from threading import Lock
 from functools import lru_cache
+from PIL import Image
 
 
 def B() -> list[list[int]]:
@@ -172,11 +175,21 @@ def decode_int(cw23: int) -> int:
     return corrected & ((1 << 12) - 1)
 
 
-def decode_many_int(cws: list[int]) -> list[int]:
-    return [decode_int(cw) for cw in cws]
+def canal_int12(cw: int, p: float) -> int:
+    global _module_rng, _module_rng_lock
+    if '_module_rng' not in globals():
+        _module_rng = random.Random(int.from_bytes(os.urandom(8), 'little'))
+        _module_rng_lock = Lock()
+
+    out = cw
+    with _module_rng_lock:
+        for j in range(12):
+            if _module_rng.random() <= p:
+                out ^= (1 << j)
+    return out
 
 
-def canal_int(cw: int, p: float) -> int:
+def canal_int23(cw: int, p: float) -> int:
     global _module_rng, _module_rng_lock
     if '_module_rng' not in globals():
         _module_rng = random.Random(int.from_bytes(os.urandom(8), 'little'))
@@ -189,9 +202,6 @@ def canal_int(cw: int, p: float) -> int:
                 out ^= (1 << j)
     return out
 
-
-def canal_many_int(cws: list[int], p: float) -> list[int]:
-    return [canal_int(cw, p) for cw in cws]
 
 def canal(v: list[int], p: float) -> list[int]:
     noisy = v.copy()
@@ -234,6 +244,87 @@ def blocks_ints_to_bytes(blocks: list[int]) -> bytes:
     if acc_len > 0:
         out.append(acc << (8 - acc_len))
     return bytes(out)
+
+
+def bytes_to_blocks(raw_bytes: bytes, max_workers: int) -> list[int]:
+    """ 
+    Converts bytes -> 12-bit ints by working with 3-byte-aligned chunks;
+    Each 3 bytes = 24 bits = 2 blocks of 12 bits 
+    """
+    if max_workers > 1 and len(raw_bytes) >= 3 * max_workers:
+        groups = (len(raw_bytes) // 3) // max_workers
+        chunk_size = max(3, groups * 3)
+        chunks = [raw_bytes[i:i+chunk_size] for i in range(0, (len(raw_bytes)//3)*3, chunk_size)]
+        remainder = raw_bytes[len(chunks)*chunk_size:]
+        with ProcessPoolExecutor(max_workers=max_workers) as ex:
+            results = list(ex.map(bytes_to_12bit_ints, chunks, chunksize=max(1, len(chunks)//max_workers)))
+        blocks_int = [val for sub in results for val in sub]
+        if remainder:
+            blocks_int.extend(bytes_to_12bit_ints(remainder))
+    else:
+        blocks_int = bytes_to_12bit_ints(raw_bytes)
+    return blocks_int
+
+
+def encode_blocks(blocks: list[int], max_workers: int, chunksize: int) -> list[int]:
+    """ Encodes 12-bit ints -> 23-bit int codewords """
+    with ProcessPoolExecutor(max_workers=max_workers) as ex:
+        encoded_blocks = list(ex.map(encode_int, blocks, chunksize=chunksize))
+    return encoded_blocks
+
+
+def canal_blocks12(blocks: list[int], p: float, max_workers: int, chunksize: int) -> list[int]:
+    """ Simulates transmission errors on 12-bit codewords """
+    with ProcessPoolExecutor(max_workers=max_workers) as ex:
+                    noisy_blocks = list(ex.map(canal_int12, blocks, itertools.repeat(p), chunksize=chunksize))
+    return noisy_blocks
+
+
+def canal_blocks23(blocks: list[int], p: float, max_workers: int, chunksize: int) -> list[int]:
+    """ Simulates transmission errors on 23-bit codewords """
+    with ProcessPoolExecutor(max_workers=max_workers) as ex:
+                    noisy_blocks = list(ex.map(canal_int23, blocks, itertools.repeat(p), chunksize=chunksize))
+    return noisy_blocks
+
+
+def decode_blocks(blocks: list[int], max_workers: int, chunksize: int) -> list[int]:
+    """ Decodes received 23-bit int codewords -> 12-bit ints """
+    with ProcessPoolExecutor(max_workers=max_workers) as ex:
+        decoded_blocks = list(ex.map(decode_int, blocks, chunksize=chunksize))
+    return decoded_blocks
+
+
+def blocks_to_bytes(blocks: list[int], max_workers: int) -> bytes:
+    """ 
+    Converts 12-bit ints -> bytes by working with 2-block-aligned chunks; 
+    Each 2 blocks = 24 bits = 3 bytes 
+    """
+    if max_workers > 1 and len(blocks) >= 2 * max_workers:
+        groups = (len(blocks) // 2) // max_workers
+        chunk_size = max(2, groups * 2)
+        chunks = [blocks[i:i+chunk_size] for i in range(0, (len(blocks)//2)*2, chunk_size)]
+        remainder = blocks[len(chunks)*chunk_size:]
+        with ProcessPoolExecutor(max_workers=max_workers) as ex:
+            results = list(ex.map(blocks_ints_to_bytes, chunks, chunksize=max(1, len(chunks)//max_workers)))
+        out_bytes = b''.join(results)
+        if remainder:
+            out_bytes += blocks_ints_to_bytes(remainder)
+    else:
+        out_bytes = blocks_ints_to_bytes(blocks)
+    return out_bytes
+
+
+def save_to_file(out_path: str, width: int, height: int, data: bytes) -> int:
+    """ Saves raw RGB bytes as a BMP image file """
+    try:
+        out_img = Image.frombytes('RGB', (width, height), data)
+        out_img.save(out_path, format='BMP')
+        return 1
+    except Exception as e:
+        print('Could not reconstruct/save image. Error:', e)
+        input("Press Any Key to continue...")
+        print("\n" * 2)
+        return 0
 
 
 test_vector = [1,0,1,0,1,0,1,0,1,0,1,0]

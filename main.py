@@ -1,7 +1,5 @@
 from PIL import Image
 from functions import *
-from concurrent.futures import ProcessPoolExecutor
-import itertools
 import os
 import time
 
@@ -39,13 +37,14 @@ def main():
                 encoded_u23 = encode_int(u12)
                 print("Encoded vector:  ", int_to_bits_list(encoded_u23, 23))
 
-                noisy_u23 = canal_int(encoded_u23, p)
+                noisy_u23 = canal_int23(encoded_u23, p)
                 print("Noisy vector:    ", int_to_bits_list(noisy_u23, 23))
                 error_u23 = encoded_u23 ^ noisy_u23
                 error_vector = int_to_bits_list(error_u23, 23)
                 print("Error vector :   ", error_vector)
                 print("Number of errors:", error_u23.bit_count())
 
+                decoded_bits = []   
                 while True:
                     choice2 = input("\nDo you want to change the noisy vector? (y/n): ")
                     if choice2.lower() == 'y':
@@ -68,11 +67,13 @@ def main():
                 try:
                     decoded_u12 = decode_int(noisy_u23)
                     decoded_bits = int_to_bits_list(decoded_u12, 12)
-                    print("Original vector: ", user_vector)
-                    print("Decoded vector:  ", decoded_bits)
                 except Exception as e:
                     print("Decoding failed:", e)
 
+                print("Original vector: ", user_vector)
+                print("Decoded vector:  ", decoded_bits)
+                print("Error vector :   ", error_vector)
+                print("Number of errors:", error_u23.bit_count())
                 input("Press Any Key to continue...")
                 print("\n" * 2)
                 break
@@ -103,6 +104,7 @@ def main():
                     original_reproduced += chr(int(''.join(map(str, byte)), 2))
 
                 encoded_blocks = []
+                noisy_blocks = []
                 encoded_bits = []
                 noisy_bits = []
                 decoded_bits = []
@@ -116,11 +118,11 @@ def main():
                     u23 = encode_int(u12)
                     encoded_blocks.append(u23)
 
-                encoded_blocks = [canal_int(u23, p) for u23 in encoded_blocks]
-                decoded_blocks = [decode_int(u23) for u23 in encoded_blocks]
+                noisy_blocks = [canal_int23(u23, p) for u23 in encoded_blocks]
+                decoded_blocks = [decode_int(u23) for u23 in noisy_blocks]
 
                 encoded_bits.extend([bit for u23 in encoded_blocks for bit in int_to_bits_list(u23, 23)])
-                noisy_bits.extend([bit for u23 in encoded_blocks for bit in int_to_bits_list(u23, 23)])
+                noisy_bits.extend([bit for u23 in noisy_blocks for bit in int_to_bits_list(u23, 23)])
                 decoded_bits.extend([bit for u12 in decoded_blocks for bit in int_to_bits_list(u12, 12)])
 
                 decoded_string = ''
@@ -133,10 +135,10 @@ def main():
                 error_vector = [a ^ b for a, b in zip(encoded_bits, noisy_bits)]
 
                 print("\nOriginal text:                       ", text)
-                print("Original text sent through channel:  ", original_reproduced.strip('\x00'))
-                print("Decoded text:                        ", decoded_string.strip('\x00'))
-                print("Length of encoded vector:            ", len(encoded_bits))
-                print("Number of errors (on encoded stream):", sum(error_vector))
+                print("Original text sent through channel: ", original_reproduced)
+                print("Decoded text:                       ", decoded_string)
+                print("Length of encoded vector:           ", len(encoded_bits))
+                print("Number of errors:                   ", sum(error_vector))
                 input("Press Any Key to continue...")
                 print("\n" * 2)
                 break
@@ -157,49 +159,28 @@ def main():
 
                 print(f"\nUsing image file: {file_path} and error probability: {p}")
 
-                # Ensure RGB (24-bit) mode
                 if img.mode != 'RGB':
                     img = img.convert('RGB')
 
                 width, height = img.size
-                raw_bytes = img.tobytes()  # length = width * height * 3
-
-                t0 = time.perf_counter()
-                # original payload length in bytes and bits
+                raw_bytes = img.tobytes()
+                
                 orig_len_bytes = len(raw_bytes)
                 orig_len_bits = orig_len_bytes * 8
-                # choose worker count
+
+                t0 = time.perf_counter()
+                
                 max_workers = max(1, os.cpu_count() or 1)
 
-                # Parallelize bytes -> 12-bit ints by splitting into 3-byte-aligned chunks
-                if max_workers > 1 and len(raw_bytes) >= 3 * max_workers:
-                    groups = (len(raw_bytes) // 3) // max_workers
-                    chunk_size = max(3, groups * 3)  # ensure multiple of 3
-                    chunks = [raw_bytes[i:i+chunk_size] for i in range(0, (len(raw_bytes)//3)*3, chunk_size)]
-                    remainder = raw_bytes[len(chunks)*chunk_size:]
-                    with ProcessPoolExecutor(max_workers=max_workers) as ex:
-                        # use the chunk worker consistently
-                        results = list(ex.map(bytes_to_12bit_ints, chunks, chunksize=max(1, len(chunks)//max_workers)))
-                    blocks_int = [val for sub in results for val in sub]
-                    if remainder:
-                        # process trailing bytes (not multiple of 3) in main process using the chunk helper
-                        blocks_int.extend(bytes_to_12bit_ints(remainder))
-                else:
-                    # single-threaded path using the same chunk helper for consistency
-                    blocks_int = bytes_to_12bit_ints(raw_bytes)
+                # Converts bytes -> 12-bit ints by working in parallel with 3-byte-aligned chunks; each 3 bytes = 24 bits = 2 blocks of 12 bits
+                blocks_int = bytes_to_blocks(raw_bytes, max_workers)
                 t_bytes_to_bits = time.perf_counter() - t0
 
-                # choose worker count
-                max_workers = max(1, os.cpu_count() or 1)
-
-                # start timer for the full image-processing pipeline (starts at bytes->bits)
-                start_time = t0
-
-                # encode integer blocks in parallel (order-preserving)
                 chunksize = max(1, len(blocks_int) // (max_workers * 4))
+
+                # Encode integer blocks in parallel (order-preserving)
                 t_enc0 = time.perf_counter()
-                with ProcessPoolExecutor(max_workers=max_workers) as ex:
-                    encoded_blocks_int = list(ex.map(encode_int, blocks_int, chunksize=chunksize))
+                encoded_blocks_int = encode_blocks(blocks_int, max_workers, chunksize)
                 t_encode = time.perf_counter() - t_enc0
 
                 # Sanity check: encoded count should match input blocks
@@ -210,22 +191,29 @@ def main():
                 print(f"Image opened: {file_path}\nMode: {img.mode}, Size: {width}x{height}, Bytes: {orig_len_bytes}")
                 print(f"Payload bits: {orig_len_bits}, blocks: {len(blocks_int)}, encoded codewords: {len(encoded_blocks_int)}")
 
-                # apply channel per-codeword in parallel (process pool) using integer channel
+                # Send NOT encoded blocks through channel in parallel
                 t_ch0 = time.perf_counter()
-                with ProcessPoolExecutor(max_workers=max_workers) as ex:
-                    noisy_blocks_int = list(ex.map(canal_int, encoded_blocks_int, itertools.repeat(p), chunksize=chunksize))
-                t_channel = time.perf_counter() - t_ch0
+                noisy_blocks = canal_blocks12(blocks_int, p, max_workers, chunksize)
+                t_channel0 = time.perf_counter() - t_ch0
 
-                # count how many encoded bits flipped in total using integer XOR popcount
+                # Send each codeword through channel in parallel
+                t_ch1 = time.perf_counter()
+                noisy_blocks_int = canal_blocks23(encoded_blocks_int, p, max_workers, chunksize)
+                t_channel1 = time.perf_counter() - t_ch1
+
+                # Count how many NOT encoded bits flipped in total
+                flips_not_encoded = sum(((a ^ b).bit_count()) for a, b in zip(blocks_int, noisy_blocks))
+                print(f"Bits flipped in NOT encoded stream by channel: {flips_not_encoded}")
+
+                # Count how many encoded bits flipped in total
                 flips = sum(((a ^ b).bit_count()) for a, b in zip(encoded_blocks_int, noisy_blocks_int))
-                print(f"Bits flipped in encoded stream by channel: {flips}")
+                print(f"Bits flipped in encoded stream by channel:     {flips}")
 
-                # decode noisy codewords in parallel (process pool)
+                # Decode noisy codewords in parallel
                 decoded_blocks_int = []
                 try:
                     t_dec0 = time.perf_counter()
-                    with ProcessPoolExecutor(max_workers=max_workers) as ex:
-                        decoded_blocks_int = list(ex.map(decode_int, noisy_blocks_int, chunksize=chunksize))
+                    decoded_blocks_int = decode_blocks(noisy_blocks_int, max_workers, chunksize)
                     t_decode = time.perf_counter() - t_dec0
                 except Exception as e:
                     print("Decoding failed for one of the codewords. Error:", e)
@@ -233,58 +221,40 @@ def main():
                     print("\n" * 2)
                     break
 
-                # sanity check: decoded count should match original block count
-                if len(decoded_blocks_int) != len(blocks_int):
-                    print(f"Decoded blocks {len(decoded_blocks_int)} != original blocks {len(blocks_int)}; falling back to single-threaded decode")
-                    try:
-                        decoded_blocks_int = [decode_int(cw) for cw in noisy_blocks_int]
-                    except Exception as e:
-                        print("Fallback decode failed:", e)
-                        input("Press Any Key to continue...")
-                        print("\n" * 2)
-                        break
-
-                # convert decoded 12-bit ints back to bytes (trimming to original length)
-                # Parallelize 12-bit ints -> bytes by splitting decoded blocks into chunks
+                # Convert NOT encoded 12-bit ints back to bytes in parallel taking even amount of chunks; each 2 blocks of 12 bits = 3 bytes
                 t_bt0 = time.perf_counter()
-                if max_workers > 1 and len(decoded_blocks_int) >= max_workers * 2:
-                    # choose per-chunk block count so (per * 12) is a multiple of 8 bits
-                    # this requires per to be even (12*per mod 8 == 0 when per is even)
-                    per = max(1, len(decoded_blocks_int) // max_workers)
-                    if per % 2 == 1:
-                        per += 1
-                    if per < 2:
-                        per = 2
-                    ranges = [decoded_blocks_int[i:i+per] for i in range(0, len(decoded_blocks_int), per)]
-                    with ProcessPoolExecutor(max_workers=max_workers) as ex:
-                        parts = list(ex.map(blocks_ints_to_bytes, ranges, chunksize=max(1, len(ranges)//max_workers)))
-                    reconstructed_bytes = b''.join(parts)
-                else:
-                    # use chunk helper for single-threaded path as well
-                    reconstructed_bytes = blocks_ints_to_bytes(decoded_blocks_int)
-                t_bits_to_bytes = time.perf_counter() - t_bt0
+                reconstructed_bytes = blocks_to_bytes(noisy_blocks, max_workers)
+                t_bits_to_bytes0 = time.perf_counter() - t_bt0
 
-                # write reconstructed image as BMP
-                out_path = file_path.rsplit('.', 1)[0] + '_reconstructed.bmp'
-                try:
-                    out_img = Image.frombytes('RGB', (width, height), reconstructed_bytes)
-                    out_img.save(out_path, format='BMP')
-                except Exception as e:
-                    print('Could not reconstruct/save image. Error:', e)
-                    input("Press Any Key to continue...")
-                    print("\n" * 2)
+                # Convert decoded 12-bit ints back to bytes in parallel taking even amount of chunks; each 2 blocks of 12 bits = 3 bytes
+                t_bt1 = time.perf_counter()
+                reconstructed_encoded_bytes = blocks_to_bytes(decoded_blocks_int, max_workers)
+                t_bits_to_bytes1 = time.perf_counter() - t_bt1
+
+                # Save reconstructed not encoded image
+                out_path0 = file_path.rsplit('.', 1)[0] + '_reconstructed.bmp'
+                if not save_to_file(out_path0, width, height, reconstructed_bytes):
                     break
 
-                # report bit errors between original and decoded payload by XORing bytes
-                num_errors = sum(((a ^ b).bit_count()) for a, b in zip(raw_bytes, reconstructed_bytes))
-                print(f"Reconstructed image saved to: {out_path}")
-                print(f"Number of bit errors after decode (in payload): {num_errors} / {orig_len_bits}")
+                # Save reconstructed encoded image
+                out_path1 = file_path.rsplit('.', 1)[0] + '_reconstructed_encoded.bmp'
+                if not save_to_file(out_path1, width, height, reconstructed_encoded_bytes):
+                    break
 
-                # print per-phase timings
-                print(f"Timings (seconds): bytes->bits={t_bytes_to_bits:.3f}, encode={t_encode:.3f}, channel={t_channel:.3f}, decode={t_decode:.3f}, bits->bytes={t_bits_to_bytes:.3f}")
+                # Count errors between original and not encoded payload sent through channel
+                num_errors0 = sum(((a ^ b).bit_count()) for a, b in zip(raw_bytes, reconstructed_bytes))
 
-                # stop timer and report elapsed time for the pipeline
-                elapsed = time.perf_counter() - start_time
+                # Count errors between original and decoded payload sent through channel
+                num_errors1 = sum(((a ^ b).bit_count()) for a, b in zip(raw_bytes, reconstructed_encoded_bytes))
+                elapsed = time.perf_counter() - t0
+
+                print(f"Reconstructed not encoded image saved to:       {out_path0}")
+                print(f"Number of bit errors after reconstruction:      {num_errors0} / {orig_len_bits}")
+                print(f"Reconstructed encoded image saved to:           {out_path1}")
+                print(f"Number of bit errors after decode (in payload): {num_errors1} / {orig_len_bits}")
+
+                # Print per-phase timings
+                print(f"Timings (seconds): bytes->bits={t_bytes_to_bits:.3f}, encode={t_encode:.3f}, channel0={t_channel0:.3f}, channel1={t_channel1:.3f}, decode={t_decode:.3f}, bits->bytes0={t_bits_to_bytes0:.3f}, bits->bytes1={t_bits_to_bytes1:.3f}")
                 print(f"Total processing time: {elapsed:.3f} seconds")
 
                 input("Press Any Key to continue...")
