@@ -1,6 +1,6 @@
 from PIL import Image
 from functions import *
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 import itertools
 import os
 import time
@@ -19,143 +19,131 @@ def main():
         choice = input("Enter your choice (1-4): ")
         choice = choice.strip()
         p = 0
+        
         if choice == '1':
             while True:
-                user_input = "101010101010"
-                p = 0.1
-                print(f"\nUsing default input vector: {user_input} and error probability: {p}")
-                
-                #user_input = input("\nEnter a 12-bit binary vector (e.g., 101010101010): ")
-                #p = float(input("Enter error probability (e.g., 0.1 for 10%): "))
+                user_input = input("\nEnter a 12-bit binary vector (e.g., 101010101010): ")
+                p = float(input("Enter error probability (e.g., 0.1 for 10%): "))
+
                 if len(user_input) != 12 or any(bit not in '01' for bit in user_input):
                     print("Invalid input. Please enter a 12-bit binary vector.")
-                elif p < 0 or p > 1:
+                    continue
+                if p < 0 or p > 1:
                     print("Invalid error probability. Please enter a value between 0 and 1.")
                     continue
-                else:
-                    vector = [int(bit) for bit in user_input]
-                    print("Original vector: ", vector)
-                    encoded = encode(vector)
-                    print("Encoded vector:  ", encoded)
-                    noisy = canal(encoded, p)
-                    print("Noisy vector:    ", noisy)
-                    error_vector = xor_vectors(encoded, noisy)
-                    print("Error vector:    ", error_vector)
-                    print("Number of errors:", weight(error_vector))
 
-                    while True:
-                        choice2 = input("\nDo you want to change the noisy vector? (y/n): ")
-                        if choice2.lower() == 'y':
-                            print("Original encoded vector was: ", encoded)
-                            print("Original noisy vector was  : ", noisy)
-                            new_noisy_input = input("Enter the new 23-bit noisy binary vector: ")
-                            if len(new_noisy_input) != 23 or any(bit not in '01' for bit in new_noisy_input):
-                                print("Invalid input. Please enter a 23-bit binary vector.")
-                            else:
-                                new_noisy = [int(bit) for bit in new_noisy_input]
-                                new_error_vector = xor_vectors(encoded, new_noisy)
-                                print("\nNew noisy vector:", new_noisy)
-                                print("Error vector:    ", new_error_vector)
-                                print("Number of errors:", weight(new_error_vector))
+                user_vector = [int(bit) for bit in user_input]
+                u12 = bits_list_to_int(user_vector)
+                print("Original vector: ", user_vector)
 
-                                set_action = 0
-                                while True:
-                                    choice3 = input("Proceed with this noisy vector? (y/n): ")
-                                    if choice3.lower() == 'y':
-                                        noisy = new_noisy.copy()
-                                        error_vector = new_error_vector.copy()
-                                        set_action = 1
-                                        break
-                                    elif choice3.lower() == 'n':
-                                        set_action = 2
-                                        break
-                                    else:
-                                        print("Invalid choice. Please enter 'y' or 'n'.")
-                                if set_action == 1:
-                                    break
-                                elif set_action == 2:
-                                    continue
-                        elif choice2.lower() == 'n':
-                            break
-                        else:
-                            print("Invalid choice. Please enter 'y' or 'n'.")
+                encoded_u23 = encode_int(u12)
+                print("Encoded vector:  ", int_to_bits_list(encoded_u23, 23))
 
-                    decoded = decode(noisy)
-                    print("\nDecoded vector:  ", decoded)
-                    input("Press Any Key to continue...")
-                    print("\n" * 2)
-                    break
+                noisy_u23 = canal_int(encoded_u23, p)
+                print("Noisy vector:    ", int_to_bits_list(noisy_u23, 23))
+                error_u23 = encoded_u23 ^ noisy_u23
+                error_vector = int_to_bits_list(error_u23, 23)
+                print("Error vector :   ", error_vector)
+                print("Number of errors:", error_u23.bit_count())
+
+                while True:
+                    choice2 = input("\nDo you want to change the noisy vector? (y/n): ")
+                    if choice2.lower() == 'y':
+                        new_noisy_input = input("Enter the new 23-bit noisy binary vector: ")
+                        if len(new_noisy_input) != 23 or any(bit not in '01' for bit in new_noisy_input):
+                            print("Invalid input. Please enter a 23-bit binary vector.")
+                            continue
+                        new_noisy_vector = [int(bit) for bit in new_noisy_input]
+                        new_noisy_u23 = bits_list_to_int(new_noisy_vector)
+                        noisy_u23 = new_noisy_u23
+                        error_u23 = encoded_u23 ^ noisy_u23
+                        print("Replaced noisy vector:", new_noisy_vector)
+                        print("New number of errors: ", error_u23.bit_count())
+                        break
+                    elif choice2.lower() == 'n':
+                        break
+                    else:
+                        print("Invalid choice. Please enter 'y' or 'n'.")
+
+                try:
+                    decoded_u12 = decode_int(noisy_u23)
+                    decoded_bits = int_to_bits_list(decoded_u12, 12)
+                    print("Original vector: ", user_vector)
+                    print("Decoded vector:  ", decoded_bits)
+                except Exception as e:
+                    print("Decoding failed:", e)
+
+                input("Press Any Key to continue...")
+                print("\n" * 2)
+                break
+
         elif choice == '2':
             while True:
                 text = input("Enter text to encode: ")
                 p = float(input("Enter error probability (e.g., 0.1 for 10%): "))
-
                 if p < 0 or p > 1:
                     print("Invalid error probability. Please enter a value between 0 and 1.")
                     continue
-                else:
-                    binary_string = ''.join(format(ord(char), '08b') for char in text)
-                    #print("Original binary string:", binary_string)
-                    original_noisy = []
-                    for i in range(0, len(binary_string), 12):
-                        chunk = binary_string[i:i+12]
-                        if len(chunk) < 12:
-                            chunk = chunk.ljust(12, '0')
-                        vector = [int(bit) for bit in chunk]
-                        original_noisy.extend(canal(vector, p))
 
-                    original_reproduced = ''
-                    for i in range(0, len(original_noisy), 8):
-                        byte = original_noisy[i:i+8]
-                        if len(byte) < 8:
-                            byte += [0] * (8 - len(byte))
-                        original_reproduced += chr(int(''.join(map(str, byte)), 2))
+                binary_string = ''.join(format(ord(char), '08b') for char in text)
 
-                    encoded_bits = []
-                    noisy_bits = []
-                    for i in range(0, len(binary_string), 12):
-                        chunk = binary_string[i:i+12]
-                        if len(chunk) < 12:
-                            chunk = chunk.ljust(12, '0')
-                        vector = [int(bit) for bit in chunk]
-                        encoded_chunk = encode(vector)
-                        encoded_bits.extend(encoded_chunk)
-                        noisy_bits.extend(canal(encoded_chunk, p))
+                original_noisy = []
+                for i in range(0, len(binary_string), 12):
+                    chunk = binary_string[i:i+12]
+                    if len(chunk) < 12:
+                        chunk = chunk.ljust(12, '0')
+                    bits = [int(bit) for bit in chunk]
+                    original_noisy.extend(canal(bits, p))
 
-                    error_vector = xor_vectors(encoded_bits, noisy_bits)
-                    #print("Encoded binary string:", ''.join(map(str, encoded_bits)))
-                    #print("Noisy binary string:  ", ''.join(map(str, noisy_bits)))
-                    #print("Error vector:     ", ''.join(map(str, error_vector)))
+                original_reproduced = ''
+                for i in range(0, len(original_noisy), 8):
+                    byte = original_noisy[i:i+8]
+                    if len(byte) < 8:
+                        byte += [0] * (8 - len(byte))
+                    original_reproduced += chr(int(''.join(map(str, byte)), 2))
 
-                    decoded_bits = []
-                    for i in range(0, len(noisy_bits), 23):
-                        chunk = noisy_bits[i:i+23]
-                        if len(chunk) < 23:
-                            chunk += [0] * (23 - len(chunk))
-                        decoded_chunk = decode(chunk)
-                        decoded_bits.extend(decoded_chunk)
+                encoded_blocks = []
+                encoded_bits = []
+                noisy_bits = []
+                decoded_bits = []
 
-                    decoded_string = ''
-                    for i in range(0, len(decoded_bits), 8):
-                        byte = decoded_bits[i:i+8]
-                        if len(byte) < 8:
-                            byte += [0] * (8 - len(byte))
-                        decoded_string += chr(int(''.join(map(str, byte)), 2))
+                for i in range(0, len(binary_string), 12):
+                    chunk = binary_string[i:i+12]
+                    if len(chunk) < 12:
+                        chunk = chunk.ljust(12, '0')
+                    bits = [int(bit) for bit in chunk]
+                    u12 = bits_list_to_int(bits)
+                    u23 = encode_int(u12)
+                    encoded_blocks.append(u23)
 
-                    print("\nOriginal text:                      ", text)
-                    print("Original text sent through channel: ", original_reproduced.strip('\x00'))
-                    print("Decoded text:                       ", decoded_string.strip('\x00'))
-                    print("Length of encoded vector:           ", len(encoded_bits))
-                    print("Number of errors:                   ", sum(error_vector))
-                    input("Press Any Key to continue...")
-                    print("\n" * 2)
-                    break
+                encoded_blocks = [canal_int(u23, p) for u23 in encoded_blocks]
+                decoded_blocks = [decode_int(u23) for u23 in encoded_blocks]
+
+                encoded_bits.extend([bit for u23 in encoded_blocks for bit in int_to_bits_list(u23, 23)])
+                noisy_bits.extend([bit for u23 in encoded_blocks for bit in int_to_bits_list(u23, 23)])
+                decoded_bits.extend([bit for u12 in decoded_blocks for bit in int_to_bits_list(u12, 12)])
+
+                decoded_string = ''
+                for i in range(0, len(decoded_bits), 8):
+                    byte = decoded_bits[i:i+8]
+                    if len(byte) < 8:
+                        byte += [0] * (8 - len(byte))
+                    decoded_string += chr(int(''.join(map(str, byte)), 2))
+
+                error_vector = [a ^ b for a, b in zip(encoded_bits, noisy_bits)]
+
+                print("\nOriginal text:                       ", text)
+                print("Original text sent through channel:  ", original_reproduced.strip('\x00'))
+                print("Decoded text:                        ", decoded_string.strip('\x00'))
+                print("Length of encoded vector:            ", len(encoded_bits))
+                print("Number of errors (on encoded stream):", sum(error_vector))
+                input("Press Any Key to continue...")
+                print("\n" * 2)
+                break
+
         elif choice == '3':
-            # Pipeline: open 24-bit BMP, split to 12-bit blocks, encode (12->23), send through canal,
-            # decode (23->12) and reconstruct the image bytes, then save reconstructed image.
             while True:
-                """
-                file_path = "gordon.bmp"
+                file_path = input("Enter the path to the 24-bit BMP image file: ")
                 try:
                     img = Image.open(file_path)
                 except Exception as e:
@@ -166,15 +154,7 @@ def main():
                 if p < 0 or p > 1:
                     print("Invalid error probability. Please enter a value between 0 and 1.")
                     continue
-                """
-                file_path = input("Enter the path to the 24-bit BMP image file: ")
-                try:
-                    img = Image.open(file_path)
-                except Exception as e:
-                    print("Could not open image. Please check the file path and try again. Error:", e)
-                    continue
 
-                p = 0.05
                 print(f"\nUsing image file: {file_path} and error probability: {p}")
 
                 # Ensure RGB (24-bit) mode

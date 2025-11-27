@@ -3,6 +3,7 @@ import os
 from threading import Lock
 from functools import lru_cache
 
+
 def B() -> list[list[int]]:
     return [
         [1,1,0,1,1,1,0,0,0,1,0,1],
@@ -19,6 +20,7 @@ def B() -> list[list[int]]:
         [1,1,1,1,1,1,1,1,1,1,1,0]
     ]
 
+
 def G() -> list[list[int]]:
     return [
     [1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,0,0,0,1,0],
@@ -34,6 +36,7 @@ def G() -> list[list[int]]:
     [0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,0,1,1,1,0,0,0,1],
     [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]
 ]
+
 
 def H() -> list[list[int]]:
     return [
@@ -63,13 +66,12 @@ def H() -> list[list[int]]:
     [1,1,1,1,1,1,1,1,1,1,1,0]
 ]
 
+
 def ZEROES() -> list[int]:
     return [0] * 12
 
 
-# --- Integer-based helpers and fast routines ---
 def _row_to_int(row: list[int]) -> int:
-    # map list index i -> bit position i (LSB = index 0)
     m = 0
     for i, bit in enumerate(row):
         if bit & 1:
@@ -84,7 +86,6 @@ def G_masks() -> list[int]:
 
 @lru_cache(maxsize=1)
 def H_row_masks() -> list[int]:
-    # H() returns 24 rows of length 12 -> each row contributes a 12-bit mask
     return [_row_to_int(row) for row in H()]
 
 
@@ -106,7 +107,6 @@ def int_to_bits_list(x: int, length: int) -> list[int]:
 
 
 def encode_int(u12: int) -> int:
-    """Encode a 12-bit integer into a 23-bit integer using precomputed masks."""
     masks = G_masks()
     cw = 0
     for j in range(12):
@@ -115,19 +115,13 @@ def encode_int(u12: int) -> int:
     return cw
 
 
-def encode_many_int(us: list[int]) -> list[int]:
-    return [encode_int(u) for u in us]
-
-
 def _add_w24_int(cw23: int) -> int:
-    # preserve existing list-based parity rule: if sum(bits) % 2 == 1 -> append 0 else append 1
     parity = cw23.bit_count() & 1
     append_bit = 0 if parity == 1 else 1
     return cw23 | (append_bit << 23)
 
 
 def _syndrome_w24_int(w24: int) -> int:
-    # compute 12-bit syndrome: s = sum_j w[j] * H_row_masks[j]
     masks = H_row_masks()
     s = 0
     for j in range(24):
@@ -137,7 +131,6 @@ def _syndrome_w24_int(w24: int) -> int:
 
 
 def _syndrome_12_with_B(s12: int) -> int:
-    # compute syndrome of 12-bit vector against B matrix (12x12)
     masks = B_masks()
     out = 0
     for j in range(12):
@@ -147,26 +140,20 @@ def _syndrome_12_with_B(s12: int) -> int:
 
 
 def IMLD_int(w24: int) -> int:
-    # Implements the integer variant of IMLD using masks
     s = _syndrome_w24_int(w24)
 
     if s.bit_count() <= 3:
-        # combine_vectors(s, ZEROES()) -> s in low 12 bits
         return w24 ^ s
 
-    # try s + B[i]
     for i, bmask in enumerate(B_masks()):
         sb = s ^ bmask
         if sb.bit_count() <= 2:
-            # e has bit i set in positions 12..23 (second half)
             e_mask = (1 << (12 + i))
             combined = (sb & ((1<<12)-1)) | e_mask
             return w24 ^ combined
 
-    # s2 = syndrome(s, B())
     s2 = _syndrome_12_with_B(s)
     if s2.bit_count() <= 3:
-        # combine_vectors(ZEROES(), s2) -> s2 in positions 12..23
         return w24 ^ (s2 << 12)
 
     for i, bmask in enumerate(B_masks()):
@@ -180,10 +167,8 @@ def IMLD_int(w24: int) -> int:
 
 
 def decode_int(cw23: int) -> int:
-    """Decode a 23-bit codeword integer to a 12-bit integer payload."""
     w24 = _add_w24_int(cw23)
     corrected = IMLD_int(w24)
-    # remove last bit (the appended parity) and return first 12 bits
     return corrected & ((1 << 12) - 1)
 
 
@@ -192,17 +177,12 @@ def decode_many_int(cws: list[int]) -> list[int]:
 
 
 def canal_int(cw: int, p: float) -> int:
-    """Apply BSC channel to a 23-bit codeword integer, flipping each bit with probability p."""
-    # Use a module-level RNG seeded once per process to avoid the cost of reseeding
-    # on every call while still ensuring different processes get different seeds
     global _module_rng, _module_rng_lock
     if '_module_rng' not in globals():
-        # initialize on first use (per-process)
         _module_rng = random.Random(int.from_bytes(os.urandom(8), 'little'))
         _module_rng_lock = Lock()
 
     out = cw
-    # Lock RNG access to be thread-safe in case canal_int is called from multiple threads
     with _module_rng_lock:
         for j in range(23):
             if _module_rng.random() <= p:
@@ -213,9 +193,15 @@ def canal_int(cw: int, p: float) -> int:
 def canal_many_int(cws: list[int], p: float) -> list[int]:
     return [canal_int(cw, p) for cw in cws]
 
-# --- top-level helpers for multiprocessing (picklable) ---
+def canal(v: list[int], p: float) -> list[int]:
+    noisy = v.copy()
+    for i in range(len(noisy)):
+        if random.random() <= p:
+            noisy[i] ^= 1
+    return noisy
+
+
 def bytes_to_12bit_ints(b: bytes) -> list[int]:
-    # Assumes b length is a multiple of 3 bytes for chunk-aligned processing (24 bits -> 2 blocks)
     blocks = []
     acc = 0
     acc_len = 0
@@ -233,7 +219,6 @@ def bytes_to_12bit_ints(b: bytes) -> list[int]:
     return blocks
 
 def blocks_ints_to_bytes(blocks: list[int]) -> bytes:
-    # Convert a list of 12-bit ints to bytes; returns full bytes (no trimming)
     out = bytearray()
     acc = 0
     acc_len = 0
@@ -253,82 +238,3 @@ def blocks_ints_to_bytes(blocks: list[int]) -> bytes:
 
 test_vector = [1,0,1,0,1,0,1,0,1,0,1,0]
 test_vector2 = [1,1,0,1,0,1,0,1,0,1,0,1]
-
-def add_w24(v: list[int]) -> list[int]:
-    if sum(v) % 2:
-        v.append(0)
-    else:
-        v.append(1)
-    return v
-
-def remove_w24(v: list[int]) -> list[int]:
-    return v[:-1]
-
-def multiply(v : list[int], A : list[list[int]]) -> list[int]:
-    sum = [0] * len(A[0])
-    for i in range(len(A[0])):
-        for j in range(len(v)):
-            sum[i] ^= v[j] & A[j][i]
-    return sum
-
-def syndrome(v : list[int], A : list[list[int]]) -> list[int]:
-    return multiply(v, A)
-
-def xor_vectors(a : list[int], b: list[int]) -> list[int]:
-    return [(x ^ y) for x, y in zip(a, b)]
-
-def sum_vectors(a : list[int], b : list[int]) -> list[int]:
-    return [(x + y) % 2 for x, y in zip(a, b)]
-
-def combine_vectors(a : list[int], b: list[int]) -> list[int]:
-    return a + b
-
-def weight(v : list[int]) -> int:
-    return sum(v)
-
-def encode(v : list[int]) -> list[int]:
-    if len(v) != 12:
-        raise ValueError("Input vector must be of length 12.")
-    return multiply(v, G())
-
-def IMLD(w : list[int]) -> list[int]:
-    if len(w) != 24:
-        raise ValueError("Input vector must be of length 24.")
-    
-    s = syndrome(w, H())
-    
-    if weight(s) <= 3:
-        return sum_vectors(combine_vectors(s, ZEROES()), w)
-    
-    for i in range(len(B())):
-        sb = sum_vectors(s, B()[i])
-        if weight(sb) <= 2:
-            e = ZEROES()
-            e[i] = 1
-            return sum_vectors(combine_vectors(sb, e), w)
-        
-    s2 = syndrome(s, B())
-    if weight(s2) <= 3:
-        return sum_vectors(combine_vectors(ZEROES(), s2), w)
-    
-    for i in range(len(B())):
-        sb = sum_vectors(s2, B()[i])
-        if weight(sb) <= 2:
-            e = ZEROES()
-            e[i] = 1
-            return sum_vectors(combine_vectors(e, sb), w)
-        
-    raise ValueError("More than 3 errors detected; cannot decode.")
-
-def decode(w : list[int]) -> list[int]:
-    w = add_w24(w)
-    corrected = IMLD(w)
-    corrected = remove_w24(corrected)
-    return corrected[:12]
-
-def canal(v: list[int], p: float) -> list[int]:
-    noisy = v.copy()
-    for i in range(len(noisy)):
-        if random.random() <= p:
-            noisy[i] ^= 1
-    return noisy
