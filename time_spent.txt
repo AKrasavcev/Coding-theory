@@ -1,5 +1,4 @@
 literatūros skaitymui ir kodo veikimo aiškinimuisi - 2.5h
 projektavimui - 1h
-programavimui - 8.5h
-klaidų ieškojimui ir taisymui - 
+programavimui, klaidų ieškojimui ir taisymui - 8.5h
 ataskaitos ruošimui - 
