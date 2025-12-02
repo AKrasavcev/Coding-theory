@@ -65,11 +65,11 @@ def main():
         if choice == '1':
             while True:
                 user_input = input("\nEnter a 12-bit binary vector (e.g., 101010101010): ")
-                p = float(input("Enter error probability (e.g., 0.1 for 10%): "))
-
                 if len(user_input) != 12 or any(bit not in '01' for bit in user_input):
                     print("Invalid input. Please enter a 12-bit binary vector.")
                     continue
+
+                p = float(input("Enter error probability (e.g., 0.1 for 10%): "))
                 if p < 0 or p > 1:
                     print("Invalid error probability. Please enter a value between 0 and 1.")
                     continue
@@ -275,11 +275,11 @@ def main():
 
                 # Count how many NOT encoded bits flipped in total
                 flips_not_encoded = sum(((a ^ b).bit_count()) for a, b in zip(blocks_int, noisy_blocks))
-                print(f"Bits flipped in NOT encoded stream by channel: {flips_not_encoded}")
+                print(f"Bits flipped in NOT encoded stream by channel:  {flips_not_encoded}")
 
                 # Count how many encoded bits flipped in total
                 flips = sum(((a ^ b).bit_count()) for a, b in zip(encoded_blocks_int, noisy_blocks_int))
-                print(f"Bits flipped in encoded stream by channel:     {flips}")
+                print(f"Bits flipped in encoded stream by channel:      {flips}")
 
                 # Decode noisy codewords in parallel
                 decoded_blocks_int = []
