@@ -1,3 +1,22 @@
+"""
+main.py
+---------
+Interactive demo and CLI for the Golay C(23,12) encode->channel->decode
+pipeline.
+
+This module provides a simple menu-driven program that exercises three
+scenarios:
+    1) encode/decode of a single 12-bit vector (interactive)
+    2) encode/decode of an arbitrary text string (chunked 12-bit blocks)
+    3) full image pipeline: read 24-bit BMP -> split into 12-bit blocks ->
+         encode (12->23) -> channel (BSC) -> decode -> reconstruct image
+
+The module uses the helper routines from `functions.py` for encoding,
+channel simulation and packing/unpacking.
+
+Run: `python main.py` and follow the menu prompts.
+"""
+
 from PIL import Image
 from functions import *
 import os
@@ -6,6 +25,20 @@ import multiprocessing
 
 
 def main():
+    """
+    Run the interactive menu loop.
+
+    Behavior:
+      - Presents a menu with 4 choices and executes the selected scenario.
+      - Choice 1: interactive encode/decode of one 12-bit vector.
+      - Choice 2: encode/decode ASCII text by grouping into 12-bit blocks.
+      - Choice 3: end-to-end image pipeline for a 24-bit BMP using the
+                  integer-based encode/canal/decode helpers.
+
+    Returns:
+        None
+    """
+
     while True:
         print("Golay (C23) Code Implementation")
         print("------------------------------")
@@ -19,6 +52,16 @@ def main():
         choice = choice.strip()
         p = 0
         
+        # -------------------------------------
+        # Choice 1: single 12-bit vector (interactive)
+        # -------------------------------------
+        # Flow:
+        #  - prompt user for a 12-bit binary string and an error probability p
+        #  - pack bits to an int via `bits_list_to_int`
+        #  - encode with `encode_int` -> 23-bit int
+        #  - apply channel `canal_int23` -> noisy 23-bit int
+        #  - allow user to override the noisy codeword manually
+        #  - decode with `decode_int` and display recovered 12-bit payload
         if choice == '1':
             while True:
                 user_input = input("\nEnter a 12-bit binary vector (e.g., 101010101010): ")
@@ -79,6 +122,16 @@ def main():
                 print("\n" * 2)
                 break
 
+        # -------------------------------------
+        # Choice 2: encode/decode text via 12-bit blocks
+        # -------------------------------------
+        # Flow:
+        #  - convert input text to a binary string (8 bits per char)
+        #  - simulate a raw (uncoded) channel on the original bits for
+        #    comparison purposes (uses list-based `canal`)
+        #  - split binary string into 12-bit blocks, pad last block with zeros
+        #  - for each 12-bit block: pack -> encode_int -> canal_int23 -> decode_int
+        #  - reassemble decoded bits into a text string and report statistics
         elif choice == '2':
             while True:
                 text = input("Enter text to encode: ")
@@ -150,6 +203,18 @@ def main():
                 print("\n" * 2)
                 break
 
+        # -------------------------------------
+        # Choice 3: image pipeline (BMP 24-bit)
+        # -------------------------------------
+        # Flow:
+        #  - open image and extract raw RGB bytes
+        #  - pack bytes -> 12-bit blocks using `bytes_to_blocks`
+        #  - encode blocks in parallel using `encode_blocks`
+        #  - send both the raw 12-bit blocks (not encoded) and the encoded
+        #    23-bit codewords through their respective channels (for side-by-side
+        #    comparison of error rates)
+        #  - decode encoded stream and convert both received streams back to
+        #    bytes using `blocks_to_bytes` and save reconstructed images
         elif choice == '3':
             while True:
                 file_path = input("Enter the path to the 24-bit BMP image file: ")
