@@ -78,7 +78,7 @@ def main():
                 u12 = bits_list_to_int(user_vector)
                 print("Original vector: ", user_vector)
 
-                encoded_u23 = encode(u12)
+                encoded_u23 = encode_int(u12)
                 print("Encoded vector:  ", int_to_bits_list(encoded_u23, 23))
 
                 noisy_u23 = canal_int23(encoded_u23, p)
@@ -109,7 +109,7 @@ def main():
                         print("Invalid choice. Please enter 'y' or 'n'.")
 
                 try:
-                    decoded_u12 = decode(noisy_u23)
+                    decoded_u12 = decode_int(noisy_u23)
                     decoded_bits = int_to_bits_list(decoded_u12, 12)
                 except Exception as e:
                     print("Decoding failed:", e)
@@ -171,14 +171,14 @@ def main():
                         chunk = chunk.ljust(12, '0')
                     bits = [int(bit) for bit in chunk]
                     u12 = bits_list_to_int(bits)
-                    u23 = encode(u12)
+                    u23 = encode_int(u12)
                     encoded_blocks.append(u23)
 
                 # Simulate sending encoded text through channel with errors
                 noisy_blocks = [canal_int23(u23, p) for u23 in encoded_blocks]
 
                 # Decode the received noisy codewords
-                decoded_blocks = [decode(u23) for u23 in noisy_blocks]
+                decoded_blocks = [decode_int(u23) for u23 in noisy_blocks]
 
                 encoded_bits.extend([bit for u23 in encoded_blocks for bit in int_to_bits_list(u23, 23)])
                 noisy_bits.extend([bit for u23 in noisy_blocks for bit in int_to_bits_list(u23, 23)])
@@ -258,7 +258,7 @@ def main():
                 # Sanity check: encoded count should match input blocks
                 if len(encoded_blocks_int) != len(blocks_int):
                     print("Warning: encoded_blocks_int length mismatch; falling back to single-threaded encode")
-                    encoded_blocks_int = [encode(u) for u in blocks_int]
+                    encoded_blocks_int = [encode_int(u) for u in blocks_int]
 
                 print(f"Image opened: {file_path}\nMode: {img.mode}, Size: {width}x{height}, Bytes: {orig_len_bytes}")
                 print(f"Payload bits: {orig_len_bits}, blocks: {len(blocks_int)}, encoded codewords: {len(encoded_blocks_int)}")

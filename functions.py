@@ -168,7 +168,7 @@ def int_to_bits_list(w: int, length: int) -> list[int]:
     return [ (w >> i) & 1 for i in range(length) ]
 
 
-def encode(w12: int) -> int:
+def encode_int(w12: int) -> int:
     """
     Encode a 12-bit payload integer into a 23-bit Golay codeword integer.
 
@@ -185,7 +185,7 @@ def encode(w12: int) -> int:
             w23 ^= masks[j]
     return w23
 
-def _add_w24(w23: int) -> int:
+def _add_w24_int(w23: int) -> int:
     """
     Append the 24th parity bit to a 23-bit codeword integer.
 
@@ -202,7 +202,7 @@ def _add_w24(w23: int) -> int:
     return w23 | (append_bit << 23)
 
 
-def _syndrome_w24(w24: int) -> int:
+def _syndrome_w24_int(w24: int) -> int:
     """
     Compute the 12-bit syndrome for a 24-bit word using H row masks.
 
@@ -220,7 +220,7 @@ def _syndrome_w24(w24: int) -> int:
     return s
 
 
-def _syndrome_w12(s12: int) -> int:
+def _syndrome_w12_int(s12: int) -> int:
     """
     Compute syndrome of a 12-bit vector against matrix B.
 
@@ -238,7 +238,7 @@ def _syndrome_w12(s12: int) -> int:
     return s2
 
 
-def IMLD(w24: int) -> int:
+def IMLD_int(w24: int) -> int:
     """
     Integer implementation of the IMLD decoding routine for Golay code.
 
@@ -254,7 +254,7 @@ def IMLD(w24: int) -> int:
     Raises:
         ValueError: if more than 3 errors are detected and correction fails.
     """
-    s = _syndrome_w24(w24)
+    s = _syndrome_w24_int(w24)
 
     if s.bit_count() <= 3:
         return w24 ^ s
@@ -266,7 +266,7 @@ def IMLD(w24: int) -> int:
             combined = (sb & ((1<<12)-1)) | e_mask
             return w24 ^ combined
 
-    s2 = _syndrome_w12(s)
+    s2 = _syndrome_w12_int(s)
     if s2.bit_count() <= 3:
         return w24 ^ (s2 << 12)
 
@@ -280,7 +280,7 @@ def IMLD(w24: int) -> int:
     raise ValueError("More than 3 errors detected; cannot decode.")
 
 
-def decode(w23: int) -> int:
+def decode_int(w23: int) -> int:
     """
     Decode a 23-bit Golay codeword integer to recover the 12-bit payload.
 
@@ -290,9 +290,27 @@ def decode(w23: int) -> int:
     Returns:
         int: recovered 12-bit payload (LSB-based packing).
     """
-    w24 = _add_w24(w23)
-    corrected = IMLD(w24)
+    w24 = _add_w24_int(w23)
+    corrected = IMLD_int(w24)
     return corrected & ((1 << 12) - 1)
+
+
+def canal(v: list[int], p: float) -> list[int]:
+    """
+    Apply a binary symmetric channel (BSC) to a list of bits.
+
+    Args:
+        v (list[int]): list of bits (0/1).
+        p (float): flip probability for each bit.
+
+    Returns:
+        list[int]: noisy copy of input list with some bits flipped.
+    """
+    noisy = v.copy()
+    for i in range(len(noisy)):
+        if random.random() <= p:
+            noisy[i] ^= 1
+    return noisy
 
 
 def canal_int12(w: int, p: float) -> int:
@@ -343,24 +361,6 @@ def canal_int23(w: int, p: float) -> int:
             if _module_rng.random() <= p:
                 out ^= (1 << j)
     return out
-
-
-def canal(v: list[int], p: float) -> list[int]:
-    """
-    Apply a binary symmetric channel (BSC) to a list of bits.
-
-    Args:
-        v (list[int]): list of bits (0/1).
-        p (float): flip probability for each bit.
-
-    Returns:
-        list[int]: noisy copy of input list with some bits flipped.
-    """
-    noisy = v.copy()
-    for i in range(len(noisy)):
-        if random.random() <= p:
-            noisy[i] ^= 1
-    return noisy
 
 
 def bytes_to_12bit_ints(b: bytes) -> list[int]:
@@ -465,7 +465,7 @@ def encode_blocks(blocks: list[int], max_workers: int, chunksize: int) -> list[i
         list[int]: encoded 23-bit codewords as integers.
     """
     with ProcessPoolExecutor(max_workers=max_workers) as ex:
-        encoded_blocks = list(ex.map(encode, blocks, chunksize=chunksize))
+        encoded_blocks = list(ex.map(encode_int, blocks, chunksize=chunksize))
     return encoded_blocks
 
 
@@ -518,7 +518,7 @@ def decode_blocks(blocks: list[int], max_workers: int, chunksize: int) -> list[i
         list[int]: list of recovered 12-bit integers.
     """
     with ProcessPoolExecutor(max_workers=max_workers) as ex:
-        decoded_blocks = list(ex.map(decode, blocks, chunksize=chunksize))
+        decoded_blocks = list(ex.map(decode_int, blocks, chunksize=chunksize))
     return decoded_blocks
 
 
