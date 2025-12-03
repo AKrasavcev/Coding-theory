@@ -2,3 +2,6 @@
 /build/
 *.spec
 *.bmp
+*.log
+*.aux
+*.out

@@ -1,0 +1,195 @@
+% report.tex
+% LaTeX report for Golay C(23,12) coding project
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[lithuanian,english]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{float}
+\usepackage{amsmath,amssymb}
+\usepackage{caption}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usepackage{siunitx}
+\usepackage{verbatim}
+\title{Ataskaita: Golay C(23,12) kodavimas — praktinė užduotis}
+\author{A. Krasavcev}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Šioje ataskaitoje aprašoma įgyvendinta programa, kuri skaitydama 24-bitų BMP paveikslėlį suskaido duomenis į 12 bitų blokų, užkoduoja naudodama Golay C(23,12) kodą, siunčia per binarinį simetrišką kanalą (BSC), dešifruoja ir atkartoja paveikslėlį. Pridedamos naudojimo instrukcijos, programos failų aprašymai, laiko sąnaudos, programuoti sprendimai bei eksperimentų gairės su grafiko šablonu.
+\end{abstract}
+
+\section*{Santrauka}
+- Projekto tikslas: realizuoti 12\(\to\)23 bitų Golay kodo užkodavimą, kanalų simuliaciją ir klaidų taisymą realiuose duomenyse (paveikslėliuose). 
+- Kalba: Python 3.x
+- Reikalingos bibliotekos: \texttt{Pillow}
+
+\section{Įgyvendintos užduoties dalys}
+\begin{itemize}
+  \item \textbf{Implementuota:} 12-bitų blokų pakavimas/išpakavimas, Golay C(23,12) užkodavimas (integriškai), IMLD dekodavimas, BSC kanalo imituotojas (bitų prapūtimas), pilnas paveikslėlio srautas: atidarymas, paketavimas į blokų seką, paralelinis užkodavimas, kanalo modeliavimas, dekodavimas ir atstatymas.
+  \item \textbf{Implementuota:} spartinimas naudojant \texttt{concurrent.futures.ProcessPoolExecutor} procesų baseiną [Windows-friendly - su \texttt{freeze\_support()}].
+  \item \textbf{Įdokumentuota:} visos funkcijos turi docstring aprašymus, didesni blokai aprašyti faile \texttt{main.py} ir \texttt{functions.py}.
+  \item \textbf{Neįgyvendinta / dalinai įgyvendinta:} automatinis eksperimentų paleidimo ir išsamios statistikos rinkimas (yra laiko matavimai per fazes, bet ne automatizuotas eksperimentų runner'is). Testų rinkinio (unit-tests) automatinis vykdymas/CI nėra įtrauktas, bet rekomenduojama pridėti.
+\end{itemize}
+
+\section{Trečiųjų šalių bibliotekos}
+\begin{itemize}
+  \item \textbf{Pillow} (\texttt{PIL}) — vaizdų nuskaitymui ir išsaugojimui (24-bit BMP atidarymas ir rašymas). Instalacija: \texttt{pip install pillow} (tai pateikta ir \texttt{README.MD}).
+  \item Standartinės Python bibliotekos: \texttt{concurrent.futures}, \texttt{multiprocessing}, \texttt{os}, \texttt{random}, \texttt{time}, \texttt{functools} ir kt. (yra naudojamos be papildomų diegimų).
+\end{itemize}
+
+\section{Laiko sąnaudos}
+Laiko sąnaudų įrašai (faile \texttt{time\_spent.txt}):
+\begin{itemize}
+  \item literatūros skaitymui ir kodo veikimo aiškinimuisi: 2.5 h
+  \item projektavimui: 1 h
+  \item programavimui, klaidų ieškojimui ir taisymui: 13.5 h
+  \item ataskaitos ruošimui: (neužpildyta) — rekomenduojama pridėti tikslų laiką
+\end{itemize}
+\textbf{Viso (sąlyginai)}: apie 17 h (be ataskaitos rašymo). 
+
+\section{Kaip paleisti programą}
+Programa turi vykdomąjį failą/svarbiausią modulį \texttt{main.py} (projekto šaknyje). Minimalūs žingsniai Windows aplinkoje:
+
+\begin{enumerate}
+  \item Įsidiekite priklausomybes:
+  \begin{verbatim}
+  pip install pillow
+  pip install pyinstaller  # jei norite sukompiliuoti .exe
+  \end{verbatim}
+  \item Paleidimas iš komandų eilutės (PowerShell):
+  \begin{verbatim}
+  python .\main.py
+  \end{verbatim}
+  Programa paleidžia meniu; pasirinkite:
+  \begin{itemize}
+    \item \texttt{1} - interaktyvus 12-bit vektorius
+    \item \texttt{2} - tekstinis pavyzdys (pavienis string)
+    \item \texttt{3} - atidaryti 24-bit BMP paveikslėlį ir paleisti visą pipeline
+    \item \texttt{4} - išeiti
+  \end{itemize}
+  \item Jei norite sukurti vieną vykdomąjį failą: (parinktinai)
+  \begin{verbatim}
+  pyinstaller --onefile main.py
+  \end{verbatim}
+\end{enumerate}
+
+Pastabos apie parametrus (interaktyviai per meniu):
+\begin{itemize}
+  \item Klaidos tikimyb\"e \texttt{p}: reik\"alinga 0..1 (pvz. 0.01 = 1\% klaidų per bitą).
+  \item Vaizdo kelias: įveskite pilną arba santykinį kelią iki 24-bit BMP failo.
+\end{itemize}
+
+\section{Programos failų aprašymas}
+\begin{description}
+  \item[\texttt{main.py}] — interaktyvus meniu, aukšto lygio pipe: atidarymas, bytes\(\to\)12-bit blokai, bitmapų kūrimas, iškviečiami \texttt{functions.py} helper'ai. Čia matomi trys scenarijai (1: vektorius, 2: tekstas, 3: pilnas paveikslėlio pipeline). Taip pat čia registruojami laiko skaitikliai ir įrašomi rekonstruoti failai: \texttt{*_reconstructed.bmp} ir \texttt{*_reconstructed\_encoded.bmp}.
+  \item[\texttt{functions.py}] — visos žemų lygių funkcijos:
+    \begin{itemize}
+      \item Golay matricos \texttt{G(), H(), B()} ir jų maskų konvertavimas į integer kaukes (\texttt{G\_masks(), H\_masks(), B\_masks()}).
+      \item Integer \texttt{encode\_int} (12\(\to\)23) ir \texttt{decode\_int} (IMLD), taip pat vidiniai pagalbiniai \texttt{_syndrome*} funkcijos.
+      \item Kanalų modeliai: \texttt{canal} (bitų sąrašui), \texttt{canal\_int12}, \texttt{canal\_int23} (integer vektoriams). Moduliniam RNG naudojama \texttt{os.urandom} seeda ir \texttt{Lock()} apsauga siekiant saugumo per procesus.
+      \item Blokų pakavimas: \texttt{bytes\_to\_12bit\_ints} ir \texttt{blocks\_ints\_to\_bytes}, bei aukšto lygio paralelūs wrapperiai: \texttt{bytes\_to\_blocks}, \texttt{encode\_blocks}, \texttt{canal\_blocks12/23}, \texttt{decode\_blocks}, \texttt{blocks\_to\_bytes}.
+      \item Išsaugojimas: \texttt{save\_to\_file} funkcija (naudoja \texttt{Pillow.Image.frombytes} ir \texttt{save}).
+    \end{itemize}
+  \item[\texttt{time\_spent.txt}] — darbo laiko užrašai (žr. skyrių "Laiko sąnaudos").
+  \item[\texttt{README.MD}] — trumpa instrukcija su priklausomyb\"emis ir PyInstaller komanda.
+\end{description}
+
+\section{Vartotojo sąsaja ir naudojimo pavyzdžiai}
+Programa turi tekstinį meniu (komandų eilutė). Pavyzdys darbiniam scenarijui (3 — paveikslėlis):
+
+\begin{verbatim}
+Golay (C23) Code Implementation
+------------------------------
+1. Enter 12-bit vector
+2. Enter text
+3. Chose (write path) image file to encode/decode
+4. Exit
+------------------------------
+Enter your choice (1-4): 3
+Enter the path to the 24-bit BMP image file: test.bmp
+Enter error probability (e.g., 0.01 for 1%): 0.01
+\end{verbatim}
+
+Išvestys: laiko matavimai, sugeneruoti failai pavadinimu \texttt{test\_reconstructed.bmp} ir \texttt{test\_reconstructed\_encoded.bmp}, keletas statistinių verčių (užkoduotų/užpūstų bitų skaičiai ir klaidų kiekiai prieš ir po dekodavimo).
+
+\section{Programiniai sprendimai: techniniai sprendimai ir prielaid\u0161kos}
+\begin{itemize}
+  \item Duomenų suskaidymas: baitai skaitomi MSB-first, susikaupia į bitinį akumuliatorių ir iš jo traukiami 12-bit blokai. Jei paskutinis blokas pilnai neužsipildo 12 bitų, jis užpildomas nuliais (LSB pusėje), kad būtų 12 bitų ilgis.
+  \item Kodavimas/formatas: kiekvienas 12-bit blokas konvertuojamas į 23-bit kodinį žodį su \texttt{encode\_int} naudojant išankstines \texttt{G\_masks()}. Prie dekodavimo atliekama 24-to bitų pariteto papildymas, kur 24-oji biti vykdo taisymo logiką (IMLD).
+  \item Dekodavimas: integer versija \texttt{IMLD\_int} įgyvendina B-matrix paiešką, kad išspręstų iki 3 klaidų per 24-bit žodį.
+  \item Kanalas: BSC modelis taikomas kiekvienam bitui nepriklausomai su tikimybe \texttt{p}. Kanalo funkcijos yra \texttt{canal\_int12} ir \texttt{canal\_int23} (integer operacijos, XOR bitų maskomis). Moduliniam RNG naudojamas \texttt{random.Random(os.urandom())} per-proceso seed, kad būtų išvengta deterministinių kartojimų tarp procesų; prieiga apsaugota \texttt{Lock()}.
+  \item Paralelizacija: CPU-bound užduotys (kodavimas, kanalas, dekodavimas, pack/unpack) atliktos per \texttt{ProcessPoolExecutor}. Siekiant sumažinti tarpo perkėlimo (IPC) režiją, įvedta chunk'ų dalijimo logika: bytes\(\to\)blocks dalijami pagal 3-baitų ribas (24 bitai = 2 blokai), o blocks\(\to\)bytes dalijami pagal 2-blokų ribas, taip išvengiama tarpo vidinių užpildymų.
+  \item Riba/klasifikacija: siekiant išvengti tarpo užpildymo sukeltų vizualių artefaktų (pvz., horizontalių juostų), chunk'ai padalijami taip, kad kiekvienas chunk turėtų lyginį blokų skaičių (daugiausia 2-blokų vienetai per 3 baitus), ir po operatorių darbų gautas baitų masyvas yra apkarpomas iki originalios ilgio \texttt{orig\_len\_bytes}.
+  \item Windows multiprocessing: projektas naudoja \texttt{multiprocessing.freeze\_support()} ir picklable top-level funkcijas, kad būtų suderinamas su Windows proceso paleidimo režimu.
+\end{itemize}
+
+\section{Atliktų eksperimentų aprašymas ir gairės}
+Tikrasis eksperimentų rinkimas nebuvo automatiškai paleistas, tačiau pateikiamos eksperimentų gairės ir pavyzdinis grafikas (PGFPlots) — galima užpildyti realiais duomenimis po kelių paleidimų.
+
+\subsection{Eksperimentų id\u0117jos}
+\begin{enumerate}
+  \item Palyginti klaidų skaičių prieš ir po dekodavimo priklausomai nuo kanalo klaidos tikimybės \(p\). Paleisti keletą p reikšmių (pvz. 0.0001, 0.001, 0.005, 0.01, 0.02, 0.05) ir matuoti bit error rate (BER) prieš ir po dekodavimo.
+  \item Matuoti per-paketines vykdymo trukmes (bytes\(\to\)blocks, encode, channel, decode, blocks\(\to\)bytes) ir palyginti su vienu procesu vs keli procesai (varying \texttt{max\_workers}).
+  \item Nustatyti, kiek klaidų Golay kodo IMLD gali ištaisyti praktikoje (statistinė eksploatacija) — sekti atvejus, kur dekodavimas nepavyksta ("More than 3 errors" klaida) ir analizuoti pasiskirstymą.
+\end{enumerate}
+
+\subsection{Pavyzdinis grafikas (šablonas)}
+Šis grafikas pateikiamas kaip PGFPlots šablonas — pakeiskite koordinates tikrais eksperimento duomenimis.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+  \begin{axis}[
+    width=0.8\textwidth,
+    xlabel={Kanalo klaidos tikimyb\'e $p$},
+    ylabel={Bit Error Rate (BER)},
+    legend pos=north west,
+    xmode=log,
+    log basis x=10
+  ]
+    % Sample placeholder data; replace with real measurements
+    \addplot+[mark=o] coordinates { (0.0001,0.00005) (0.001,0.0005) (0.005,0.0025) (0.01,0.005) (0.02,0.01) (0.05,0.025) };
+    \addlegendentry{Neužkoduotas (prieš dekodavimą)}
+
+    \addplot+[mark=square] coordinates { (0.0001,1e-7) (0.001,1e-6) (0.005,5e-5) (0.01,2e-4) (0.02,0.001) (0.05,0.005) };
+    \addlegendentry{Užkoduotas + ištaisytas (po dekodavimo)}
+  \end{axis}
+\end{tikzpicture}
+\caption{Pavyzdinis BER priklausomai nuo kanalo klaidos tikimybės — įrašykite realius duomenis vietoje koordinat73.}
+\end{figure}
+
+\section{Rezultatai: ką tikėtis}
+Po sėkmingo paleidimo su \texttt{p=0} rekonstrukcija turėtų būti bitų-už-bitą identiška su originalu (t. y. \texttt{raw\_bytes == reconstructed\_bytes}). Su padidėjusia p vertė klaidų skaičius prieš dekodavimą didėja, bet Golay kodas turėtų sumažinti klaidų skaičių iki tam tikros ribos (iki 3 klaidų per 24-bit žodį teorinė riba).
+
+\section{Naudota literatūra}
+\begin{thebibliography}{9}
+\bibitem{Pillow}
+Pillow (PIL Fork) — Python Imaging Library, \url{https://python-pillow.org/}.
+
+\bibitem{MacWilliamsSloane}
+F.~J.~MacWilliams and N.~J.~A.~Sloane, \textit{The Theory of Error-Correcting Codes}. North-Holland, 1977.
+
+\bibitem{PythonDocs}
+Python Software Foundation, \textit{Python Documentation}, \url{https://docs.python.org/3/}.
+\end{thebibliography}
+
+\section*{Priedai}
+\begin{itemize}
+  \item Projekto failai: \texttt{main.py}, \texttt{functions.py}, \texttt{time\_spent.txt}, \texttt{README.MD} (pateikta projekto šaknyje).
+  \item Komanda PDF generavimui (jei turite \texttt{pdflatex} arba \texttt{xelatex}):
+  \begin{verbatim}
+  pdflatex report.tex
+  pdflatex report.tex  # du kartus, jei reikia atnaujinti krypčių nuorodas
+  \end{verbatim}
+\end{itemize}
+
+\end{document}
