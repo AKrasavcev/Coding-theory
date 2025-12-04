@@ -69,7 +69,7 @@ def main():
                     print("Invalid input. Please enter a 12-bit binary vector.")
                     continue
 
-                p = float(input("Enter error probability (e.g., 0.1 for 10%): "))
+                p = float(input("Enter error probability (e.g., 0.01 for 1%): "))
                 if p < 0 or p > 1:
                     print("Invalid error probability. Please enter a value between 0 and 1.")
                     continue
@@ -135,7 +135,7 @@ def main():
         elif choice == '2':
             while True:
                 text = input("Enter text to encode: ")
-                p = float(input("Enter error probability (e.g., 0.1 for 10%): "))
+                p = float(input("Enter error probability (e.g., 0.01 for 1%): "))
                 if p < 0 or p > 1:
                     print("Invalid error probability. Please enter a value between 0 and 1.")
                     continue
@@ -197,7 +197,7 @@ def main():
                 print("\nOriginal text:                      ", text)
                 print("Original text sent through channel: ", original_reproduced)
                 print("Decoded text:                       ", decoded_string)
-                print("Length of encoded vector:           ", len(encoded_bits))
+                print("Number of encoded vectors:          ", len(encoded_blocks))
                 print("Number of errors:                   ", sum(error_vector))
                 input("Press Any Key to continue...")
                 print("\n" * 2)
@@ -275,11 +275,11 @@ def main():
 
                 # Count how many NOT encoded bits flipped in total
                 flips_not_encoded = sum(((a ^ b).bit_count()) for a, b in zip(blocks_int, noisy_blocks))
-                print(f"Bits flipped in NOT encoded stream by channel:  {flips_not_encoded}")
+                print(f"Bits flipped in NOT encoded stream by channel:  {flips_not_encoded} | {flips_not_encoded / orig_len_bits:.4%}")
 
                 # Count how many encoded bits flipped in total
                 flips = sum(((a ^ b).bit_count()) for a, b in zip(encoded_blocks_int, noisy_blocks_int))
-                print(f"Bits flipped in encoded stream by channel:      {flips}")
+                print(f"Bits flipped in encoded stream by channel:      {flips} | {flips / (len(encoded_blocks_int) * 23):.4%}")
 
                 # Decode noisy codewords in parallel
                 decoded_blocks_int = []
@@ -321,9 +321,9 @@ def main():
                 elapsed = time.perf_counter() - t0
 
                 print(f"Reconstructed not encoded image saved to:       {out_path0}")
-                print(f"Number of bit errors after reconstruction:      {num_errors0} / {orig_len_bits}")
+                print(f"Number of bit errors after reconstruction:      {num_errors0} / {orig_len_bits} | {num_errors0 / orig_len_bits:.4%}")
                 print(f"Reconstructed encoded image saved to:           {out_path1}")
-                print(f"Number of bit errors after decode (in payload): {num_errors1} / {orig_len_bits}")
+                print(f"Number of bit errors after decode (in payload): {num_errors1} / {orig_len_bits} | {num_errors1 / orig_len_bits:.4%}")
 
                 # Print per-phase timings
                 print(f"Timings (seconds): bytes->bits={t_bytes_to_bits:.3f}, encode={t_encode:.3f}, channel0={t_channel0:.3f}, channel1={t_channel1:.3f}, decode={t_decode:.3f}, bits->bytes0={t_bits_to_bytes0:.3f}, bits->bytes1={t_bits_to_bytes1:.3f}")
