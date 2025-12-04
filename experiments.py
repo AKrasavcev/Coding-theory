@@ -133,10 +133,10 @@ def run_experiment(dummy_path: str, p_values: list[float], max_workers: int = 1,
 if __name__ == '__main__':
     multiprocessing.freeze_support()
     dummy = 'dummy_1MB.bin'
-    p_values = [0.0, 0.0001, 0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
+    p_values = [0.0, 0.0001, 0.001, 0.005, 0.01, 0.15, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
     #max_workers = max(1, os.cpu_count() or 1)
     max_workers = 8  # adjust as needed
-    num_runs = 10
+    num_runs = 10 # adjust as needed
     results = run_experiment(dummy, p_values, max_workers=max_workers, num_runs=num_runs)
 
     # Save results to CSV
