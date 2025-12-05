@@ -91,10 +91,6 @@ def run_experiment(dummy_path: str, p_values: list[float], max_workers: int = 1,
             recon_coded = blocks_to_bytes(decoded_blocks, max_workers)
             t_coded_unpack = time.perf_counter() - t0
 
-            # Trim reconstructed bytes to original length (pack/unpack may pad)
-            recon_uncoded = recon_uncoded[:orig_len_bytes]
-            recon_coded = recon_coded[:orig_len_bytes]
-
             # Compute bit errors
             errs_uncoded = bit_errors_bytes(raw_bytes, recon_uncoded)
             errs_coded = bit_errors_bytes(raw_bytes, recon_coded)
